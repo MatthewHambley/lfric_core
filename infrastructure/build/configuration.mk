@@ -7,27 +7,27 @@
 # Run this make file to generate configuration found in SOURCE_DIR
 # to WORKING_DIR. Uses PROJECT to know what to call master files.
 #
+# Sets CONFIG_DIR as WORKING_DIR/configuration to store configuration output in
+#
+# Reads ROSE_META_DIRS for list of directories to read rose metadata from. Will
+# always append CORE_ROOT_DIR/rose-meta to this variable
+#
 
 export CONFIG_DIR=$(WORKING_DIR)/configuration
+export ROSE_META_DIRS += $(CORE_ROOT_DIR)/rose-meta
 
 .PHONY: configuration_files
-configuration_files: $(WORKING_DIR)/configuration_mod.f90 \
+configuration_files: $(WORKING_DIR)/config_loader_mod.f90 \
                      $(WORKING_DIR)/feign_config_mod.f90
 
 .INTERMEDIATE: $(CONFIG_DIR)/rose-meta.json $(CONFIG_DIR)/config_namelists.txt
 $(CONFIG_DIR)/rose-meta.json $(CONFIG_DIR)/config_namelists.txt: $(META_FILE_DIR)/rose-meta.conf
 	$(call MESSAGE,Generating namelist configuration file.)
 	$(Q)mkdir -p $(dir $@)
-ifdef APPS_ROOT_DIR
-	$(Q)rose_picker $(META_FILE_DIR)/rose-meta.conf          \
-	                -directory $(CONFIG_DIR)                 \
-	                -include_dirs $(APPS_ROOT_DIR)/rose-meta \
-	                -include_dirs $(CORE_ROOT_DIR)/rose-meta
-else
 	$(Q)rose_picker $(META_FILE_DIR)/rose-meta.conf \
 	                -directory $(CONFIG_DIR)        \
-	                -include_dirs $(CORE_ROOT_DIR)/rose-meta
-endif
+	                $(addprefix -include_dirs ,$(ROSE_META_DIRS))
+
 	# It's not clear why this is needed but as of 5/2/20 the diagnostic
 	# application test suite fails without it.
 	$(Q)sleep 20
@@ -46,8 +46,8 @@ $(CONFIG_DIR)/build_config_loaders: $(CONFIG_DIR)/rose-meta.json
 # causes a race condition when calling Make in parallel. The generation
 # of config_namelists.txt is done at the same time as rose-meta.json, so the
 # presense of config_namelists.txt is implied as true if rose-meta.json is present
-.PRECIOUS: $(WORKING_DIR)/configuration_mod.f90 $(CONFIG_DIR)/%_config_mod.f90
-$(WORKING_DIR)/configuration_mod.f90: $(CONFIG_DIR)/build_config_loaders
+.PRECIOUS: $(WORKING_DIR)/config_loader_mod.f90 $(CONFIG_DIR)/%_config_mod.f90
+$(WORKING_DIR)/config_loader_mod.f90: $(CONFIG_DIR)/build_config_loaders
 	$(call MESSAGE,Generating configuration loader module,$(notdir $@))
 	$(Q)mkdir -p $(dir $@)
 	$(Q)$(LFRIC_BUILD)/tools/GenerateConfigLoader                      \
