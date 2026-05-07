@@ -8,22 +8,25 @@
 !>
 module driver_model_data_mod_test
 
+  use pfunit
+
   use constants_mod,                 only : i_def, r_def
-  use function_space_mod,            only : function_space_type
-  use function_space_collection_mod, only : function_space_collection_type, &
-                                            function_space_collection
-  use mesh_collection_mod,           only : mesh_collection_type, &
-                                            mesh_collection
-  use halo_routing_collection_mod,   only : halo_routing_collection_type, &
-                                            halo_routing_collection
+  use driver_model_data_mod,         only : model_data_type
   use field_mod,                     only : field_type, &
                                             field_proxy_type
   use field_collection_mod,          only : field_collection_type
   use fs_continuity_mod,             only : W3
+  use function_space_mod,            only : function_space_type
+  use function_space_collection_mod, only : function_space_collection_type, &
+                                            function_space_collection
+  use halo_routing_collection_mod,   only : halo_routing_collection_type, &
+                                            halo_routing_collection
+  use lfric_mpi_mod,                 only : global_mpi, &
+                                            lfric_comm_type
   use local_mesh_mod,                only : local_mesh_type
+  use mesh_collection_mod,           only : mesh_collection_type, &
+                                            mesh_collection
   use pure_abstract_field_mod,       only : pure_abstract_field_type
-  use driver_model_data_mod,         only : model_data_type
-  use funit
 
   implicit none
 
@@ -31,9 +34,13 @@ module driver_model_data_mod_test
   private
   public :: test_assignment
   public :: test_copy_model_data
+  !
+  ! pFUnit depends on symbol spillage
+  !
+  public :: MpiTestParameter
 
   @TestCase
-  type, extends(TestCase), public :: driver_model_data_test_type
+  type, extends(MpiTestCase), public :: driver_model_data_test_type
     private
     type(local_mesh_type)              :: unit_test_local_mesh
     type(function_space_type), pointer :: w3_fs => null()
@@ -41,8 +48,6 @@ module driver_model_data_mod_test
     procedure setUp
     procedure tearDown
     procedure get_local_mesh_ptr
-    procedure test_assignment
-    procedure test_copy_model_data
   end type driver_model_data_test_type
 
   integer(i_def), parameter    :: element_order_h = 0
@@ -59,11 +64,18 @@ contains
     implicit none
 
     class(driver_model_data_test_type), intent(inout) :: this
+
     type(local_mesh_type), pointer :: unit_test_local_mesh_ptr
+    type(mesh_type),       pointer :: mesh
+
+    type(lfric_comm_type) :: lfric_comm
     type(mesh_type) :: unit_test_mesh
     integer(i_def)  :: mesh_id
 
-    type(mesh_type), pointer :: mesh => null()
+    call lfric_comm%set_comm_mpi_val(this%getMpiCommunicator())
+
+    !Store the MPI communicator for later use
+    call global_mpi%initialise(lfric_comm)
 
     ! Create top level mesh collection
     mesh_collection = mesh_collection_type()
@@ -95,8 +107,8 @@ contains
 
     class(driver_model_data_test_type), intent(inout) :: this
 
-    call function_space_collection%clear()
-    call mesh_collection%clear()
+    ! Clear the stored MPI communicator
+    call global_mpi%finalise()
 
   end subroutine tearDown
 
@@ -118,14 +130,14 @@ contains
   !> Test that field collection objects are correctly added to the model data
   !> and are retrievable
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  @Test
-  subroutine test_assignment( this )
+  @Test( npes=[1] )
+  subroutine test_assignment( context )
 
     implicit none
 
-    class(driver_model_data_test_type), intent(inout) :: this
-    type(model_data_type)                             :: model_data
+    class(driver_model_data_test_type), intent(inout) :: context
 
+    type(model_data_type)                    :: model_data
     type(field_type), target                 :: test_field
     type(field_type), pointer                :: test_field_ptr
     type(field_type), pointer                :: returned_field => null()
@@ -139,7 +151,7 @@ contains
 
 
     ! Initialise test field and get proxy
-    call test_field%initialise( this%w3_fs, name='test_field' )
+    call test_field%initialise( context%w3_fs, name='test_field' )
     field_proxy = test_field%get_proxy()
 
     ! Set first dof to nominal value
@@ -186,18 +198,19 @@ contains
 
   !> Test for copy_model_data
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  @Test
-  subroutine test_copy_model_data( this )
+  @Test( npes=[1] )
+  subroutine test_copy_model_data( context )
 
     implicit none
 
-    class(driver_model_data_test_type), intent(inout) :: this
-    type(model_data_type)                             :: model_data
-    type(model_data_type)                             :: model_data_copy
+    class(driver_model_data_test_type), intent(inout) :: context
 
-    type(field_type), target                          :: test_field
-    type(field_proxy_type)                            :: field_proxy
-    type(field_proxy_type)                            :: returned_field_proxy
+    type(model_data_type)                    :: model_data
+    type(model_data_type)                    :: model_data_copy
+
+    type(field_type), target                 :: test_field
+    type(field_proxy_type)                   :: field_proxy
+    type(field_proxy_type)                   :: returned_field_proxy
 
     class(pure_abstract_field_type), pointer :: field_ptr => null()
     type(field_type), pointer                :: test_field_ptr => null()
@@ -208,7 +221,7 @@ contains
     type(field_collection_type), pointer     :: returned_collection => null()
 
     ! Initialise test field and get proxy
-    call test_field%initialise( this%w3_fs, name='test_field' )
+    call test_field%initialise( context%w3_fs, name='test_field' )
     field_proxy = test_field%get_proxy()
 
     ! Set first dof to nominal value
