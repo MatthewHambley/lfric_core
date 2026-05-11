@@ -8,30 +8,37 @@
 !>
 module inventory_by_mesh_mod_test
 
+    use pfunit
+
     use constants_mod,                 only : i_def, r_def, l_def, r_solver
-    use function_space_mod,            only : function_space_type
-    use function_space_collection_mod, only : function_space_collection_type, &
-                                              function_space_collection
-    use mesh_collection_mod,           only : mesh_collection_type, &
-                                              mesh_collection
-    use mesh_mod,                      only : mesh_type
     use halo_routing_collection_mod,   only : halo_routing_collection_type, &
                                               halo_routing_collection
     use field_mod,                     only : field_type, field_proxy_type
-    use operator_mod,                  only : operator_type, operator_proxy_type
-    use inventory_by_mesh_mod,         only : inventory_by_mesh_type
     use fs_continuity_mod,             only : W3
+    use function_space_mod,            only : function_space_type
+    use function_space_collection_mod, only : function_space_collection_type, &
+                                              function_space_collection
+    use inventory_by_mesh_mod,         only : inventory_by_mesh_type
+    use lfric_mpi_mod,                 only : global_mpi, &
+                                              lfric_comm_type
     use linked_list_mod,               only : linked_list_item_type
     use local_mesh_mod,                only : local_mesh_type
-    use funit
+    use mesh_mod,                      only : mesh_type
+    use mesh_collection_mod,           only : mesh_collection_type, &
+                                              mesh_collection
+    use operator_mod,                  only : operator_type, operator_proxy_type
 
   implicit none
 
   private
   public :: test_all
+  !
+  ! pFUnit depends on symbol spillage.
+  !
+  public :: MpiTestParameter
 
   @TestCase
-  type, extends(TestCase), public :: inventory_by_mesh_test_type
+  type, extends(MpiTestCase), public :: inventory_by_mesh_test_type
     private
     type(function_space_type), pointer :: w3_fs_A => null()
     type(function_space_type), pointer :: w3_fs_B => null()
@@ -42,7 +49,6 @@ module inventory_by_mesh_mod_test
     procedure setUp
     procedure tearDown
     procedure get_local_mesh_ptr
-    procedure test_all
   end type inventory_by_mesh_test_type
 
   integer(i_def), parameter :: element_order_h = 0
@@ -59,11 +65,17 @@ contains
 
     class(inventory_by_mesh_test_type), intent(inout) :: this
 
+    type(lfric_comm_type) :: lfric_comm
     type(local_mesh_type), pointer :: unit_test_local_mesh_ptr
     type(mesh_type) :: unit_test_mesh_A, unit_test_mesh_B
     integer(i_def)  :: mesh_id
     integer(i_def)  :: mesh_id_A = 3
     integer(i_def)  :: mesh_id_B = 4
+
+    call lfric_comm%set_comm_mpi_val(this%getMpiCommunicator())
+
+    !Store the MPI communicator for later use
+    call global_mpi%initialise(lfric_comm)
 
     ! Create top level mesh collection
     mesh_collection = mesh_collection_type()
@@ -105,6 +117,9 @@ contains
     call function_space_collection%clear()
     call mesh_collection%clear()
 
+    ! Clear the stored MPI communicator
+    call global_mpi%finalise()
+
   end subroutine tearDown
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -118,12 +133,12 @@ contains
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-  @test
-  subroutine test_all( this )
+  @test( npes=[1] )
+  subroutine test_all( context )
 
     implicit none
 
-    class(inventory_by_mesh_test_type), intent(inout) :: this
+    class(inventory_by_mesh_test_type), intent(inout) :: context
 
     type(field_type)                      :: test_field_A
     type(field_type)                      :: test_field_B
@@ -167,19 +182,19 @@ contains
 
     !---------------------------- Create fields -------------------------------!
     ! Create a field object and put 99.0 in the first dof
-    call test_field_A%initialise( this%w3_fs_A )
+    call test_field_A%initialise( context%w3_fs_A )
     test_field_A_p = test_field_A%get_proxy()
     test_field_A_p%data(1) = 99.0_r_def
 
-    call test_field_B%initialise( this%w3_fs_B )
+    call test_field_B%initialise( context%w3_fs_B )
     test_field_B_p = test_field_B%get_proxy()
     test_field_B_p%data(1) = 54.0_r_def
 
-    call test_op_A%initialise( this%w3_fs_A, this%w3_fs_A )
+    call test_op_A%initialise( context%w3_fs_A, context%w3_fs_A )
     test_op_A_p = test_op_A%get_proxy()
     test_op_A_p%local_stencil(1,1,1) = 20.1_r_def
 
-    call test_op_B%initialise( this%w3_fs_B, this%w3_fs_B )
+    call test_op_B%initialise( context%w3_fs_B, context%w3_fs_B )
     test_op_B_p = test_op_B%get_proxy()
     test_op_B_p%local_stencil(1,1,1) = 0.09_r_def
 
@@ -187,90 +202,90 @@ contains
     ! Create a inventory_by_mesh_A and put fields in it
     call test_inventory_by_mesh_A%initialise(name="test_inventory_of_fields", &
                                              table_len=5)
-    call test_inventory_by_mesh_A%copy_field(test_field_A, this%mesh_A)
-    call test_inventory_by_mesh_A%copy_field(test_field_B, this%mesh_B)
+    call test_inventory_by_mesh_A%copy_field(test_field_A, context%mesh_A)
+    call test_inventory_by_mesh_A%copy_field(test_field_B, context%mesh_B)
 
     !--- Check fields exist in inventory
-    exists = test_inventory_by_mesh_A%paired_object_exists(this%mesh_A%get_id())
+    exists = test_inventory_by_mesh_A%paired_object_exists(context%mesh_A%get_id())
     @assertTrue(exists)
-    exists = test_inventory_by_mesh_A%paired_object_exists(this%mesh_B%get_id())
+    exists = test_inventory_by_mesh_A%paired_object_exists(context%mesh_B%get_id())
     @assertTrue(exists)
 
     ! Field extracts
-    call test_inventory_by_mesh_A%get_field(this%mesh_A, returned_field_A)
+    call test_inventory_by_mesh_A%get_field(context%mesh_A, returned_field_A)
     returned_field_A_p = returned_field_A%get_proxy()
     ! Check that test_field has 99.0 in the first dof
     @assertEqual(99.0_r_def, returned_field_A_p%data(1), tol)
 
-    call test_inventory_by_mesh_A%get_field(this%mesh_B, returned_field_B)
+    call test_inventory_by_mesh_A%get_field(context%mesh_B, returned_field_B)
     returned_field_B_p = returned_field_B%get_proxy()
     ! Check that test_field has 54.0 in the first dof
     @assertEqual(54.0_r_def, returned_field_B_p%data(1), tol)
 
     ! Check we can remove a field from the inventory
-    call test_inventory_by_mesh_A%remove_paired_object(this%mesh_A%get_id())
+    call test_inventory_by_mesh_A%remove_paired_object(context%mesh_A%get_id())
     length = test_inventory_by_mesh_A%get_length()
     @assertEqual(1, length)
 
     ! Check that test_field no longer exists in inventory_by_mesh
-    exists = test_inventory_by_mesh_A%paired_object_exists(this%mesh_A%get_id())
+    exists = test_inventory_by_mesh_A%paired_object_exists(context%mesh_A%get_id())
     @assertFalse(exists)
 
     ! Check we can add the field back into the inventory
-    call test_inventory_by_mesh_A%copy_field(test_field_A, this%mesh_A)
-    call test_inventory_by_mesh_A%get_field(this%mesh_A, returned_field_A)
+    call test_inventory_by_mesh_A%copy_field(test_field_A, context%mesh_A)
+    call test_inventory_by_mesh_A%get_field(context%mesh_A, returned_field_A)
     returned_field_A_p = returned_field_A%get_proxy()
     @assertEqual(99.0_r_def, returned_field_A_p%data(1), tol)
 
     ! Check computation of intermesh IDs
     intermesh_id =                                                             &
-        test_inventory_by_mesh_A%compute_intermesh_id(this%mesh_A, this%mesh_B)
+        test_inventory_by_mesh_A%compute_intermesh_id(context%mesh_A, context%mesh_B)
     @assertEqual(18, intermesh_id)
     intermesh_id =                                                             &
-        test_inventory_by_mesh_A%compute_intermesh_id(this%mesh_B, this%mesh_A)
+        test_inventory_by_mesh_A%compute_intermesh_id(context%mesh_B, context%mesh_A)
     @assertEqual(19, intermesh_id)
 
     ! Check we can add an intermesh field
     call test_inventory_by_mesh_A%add_field(                                   &
-            test_field_C, this%w3_fs_A, this%mesh_A, this%mesh_B               &
+            test_field_C, context%w3_fs_A, context%mesh_A, context%mesh_B               &
     )
 
     !-------------- Create operator inventory 'B' & test extracts -------------!
     ! Create a inventory_by_mesh_B and put fields in it
     call test_inventory_by_mesh_B%initialise(name="test_inventory_of_fields", &
                                              table_len=5)
-    call test_inventory_by_mesh_B%copy_operator(test_op_A, this%mesh_A)
-    call test_inventory_by_mesh_B%copy_operator(test_op_B, this%mesh_B)
+    call test_inventory_by_mesh_B%copy_operator(test_op_A, context%mesh_A)
+    call test_inventory_by_mesh_B%copy_operator(test_op_B, context%mesh_B)
 
     !---Check operators exist in inventory
-    exists = test_inventory_by_mesh_B%paired_object_exists(this%mesh_A%get_id())
+    exists = test_inventory_by_mesh_B%paired_object_exists(context%mesh_A%get_id())
     @assertTrue(exists)
-    exists = test_inventory_by_mesh_B%paired_object_exists(this%mesh_B%get_id())
+    exists = test_inventory_by_mesh_B%paired_object_exists(context%mesh_B%get_id())
     @assertTrue(exists)
 
     ! Operator extracts
-    call test_inventory_by_mesh_B%get_operator(this%mesh_A, returned_op_A)
+    call test_inventory_by_mesh_B%get_operator(context%mesh_A, returned_op_A)
     returned_op_A_p = returned_op_A%get_proxy()
     ! Check that test_op has 20.1 in the first dof
     @assertEqual(20.1_r_def, returned_op_A_p%local_stencil(1,1,1), tol)
 
-    call test_inventory_by_mesh_B%get_operator(this%mesh_B, returned_op_B)
+    call test_inventory_by_mesh_B%get_operator(context%mesh_B, returned_op_B)
     returned_op_B_p = returned_op_B%get_proxy()
     ! Check that test_op has 0.09 in the first dof
     @assertEqual(0.09_r_def, returned_op_B_p%local_stencil(1,1,1), tol)
 
     ! Check we can remove a operator from the inventory
-    call test_inventory_by_mesh_B%remove_paired_object(this%mesh_A%get_id())
+    call test_inventory_by_mesh_B%remove_paired_object(context%mesh_A%get_id())
     length = test_inventory_by_mesh_B%get_length()
     @assertEqual(1, length)
 
     ! Check that test_op no longer exists in inventory_by_mesh
-    exists = test_inventory_by_mesh_B%paired_object_exists(this%mesh_A%get_id())
+    exists = test_inventory_by_mesh_B%paired_object_exists(context%mesh_A%get_id())
     @assertFalse(exists)
 
     ! Check we can add the operator back into the inventory
-    call test_inventory_by_mesh_B%copy_operator(test_op_A, this%mesh_A)
-    call test_inventory_by_mesh_B%get_operator(this%mesh_A, returned_op_A)
+    call test_inventory_by_mesh_B%copy_operator(test_op_A, context%mesh_A)
+    call test_inventory_by_mesh_B%get_operator(context%mesh_A, returned_op_A)
     returned_op_A_p = returned_op_A%get_proxy()
     @assertEqual(20.1_r_def, returned_op_A_p%local_stencil(1,1,1), tol)
 
@@ -281,14 +296,14 @@ contains
     )
     ! Add a logical
     scalar_logical = .true.
-    call test_inventory_by_mesh_A%add_logical( scalar_logical, this%mesh_A )
-    call test_inventory_by_mesh_A%get_logical( this%mesh_A, returned_logical )
+    call test_inventory_by_mesh_A%add_logical( scalar_logical, context%mesh_A )
+    call test_inventory_by_mesh_A%get_logical( context%mesh_A, returned_logical )
     @assertTrue(returned_logical)
 
     ! Add an integer
     scalar_integer = 19
-    call test_inventory_by_mesh_A%add_integer( scalar_integer, this%mesh_B )
-    call test_inventory_by_mesh_A%get_integer( this%mesh_B, returned_integer )
+    call test_inventory_by_mesh_A%add_integer( scalar_integer, context%mesh_B )
+    call test_inventory_by_mesh_A%get_integer( context%mesh_B, returned_integer )
     @assertEqual(scalar_integer, returned_integer)
 
     ! Add reals
@@ -298,10 +313,10 @@ contains
     )
     first_real = 19.19_r_def
     second_real = 19.1919_r_solver
-    call test_inventory_by_mesh_B%add_real( first_real, this%mesh_A )
-    call test_inventory_by_mesh_B%add_real( second_real, this%mesh_B )
-    call test_inventory_by_mesh_B%get_real( this%mesh_A, returned_real1 )
-    call test_inventory_by_mesh_B%get_real( this%mesh_B, returned_real2 )
+    call test_inventory_by_mesh_B%add_real( first_real, context%mesh_A )
+    call test_inventory_by_mesh_B%add_real( second_real, context%mesh_B )
+    call test_inventory_by_mesh_B%get_real( context%mesh_A, returned_real1 )
+    call test_inventory_by_mesh_B%get_real( context%mesh_B, returned_real2 )
     @assertEqual(first_real, returned_real1, tol)
     @assertEqual(second_real, returned_real2, tol_rsol)
 

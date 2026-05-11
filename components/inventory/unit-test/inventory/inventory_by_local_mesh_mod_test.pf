@@ -8,29 +8,35 @@
 !>
 module inventory_by_local_mesh_mod_test
 
+    use pfunit
+
     use constants_mod,                 only : i_def, r_def, l_def, r_solver
+    use field_mod,                     only : field_type, field_proxy_type
+    use fs_continuity_mod,             only : W3
     use function_space_mod,            only : function_space_type
     use function_space_collection_mod, only : function_space_collection_type, &
                                               function_space_collection
-    use mesh_collection_mod,           only : mesh_collection_type, &
-                                              mesh_collection
-    use mesh_mod,                      only : mesh_type
     use halo_routing_collection_mod,   only : halo_routing_collection_type, &
                                               halo_routing_collection
-    use field_mod,                     only : field_type, field_proxy_type
     use inventory_by_local_mesh_mod,   only : inventory_by_local_mesh_type
-    use fs_continuity_mod,             only : W3
+    use lfric_mpi_mod,                 only : global_mpi, &
+                                              lfric_comm_type
     use linked_list_mod,               only : linked_list_item_type
     use local_mesh_mod,                only : local_mesh_type
-    use funit
+    use mesh_mod,                      only : mesh_type
+    use mesh_collection_mod,           only : mesh_collection_type, &
+                                              mesh_collection
 
   implicit none
 
   private
   public :: test_all
+  !
+  ! pFUnit depends on symbol spillage
+  public :: MpiTestParameter
 
   @TestCase
-  type, extends(TestCase), public :: inventory_by_local_mesh_test_type
+  type, extends(MpiTestCase), public :: inventory_by_local_mesh_test_type
     private
     type(function_space_type), pointer :: w3_fs_A => null()
     type(function_space_type), pointer :: w3_fs_B => null()
@@ -43,7 +49,6 @@ module inventory_by_local_mesh_mod_test
     procedure tearDown
     procedure get_local_mesh_ptr_A
     procedure get_local_mesh_ptr_B
-    procedure test_all
   end type inventory_by_local_mesh_test_type
 
   integer(i_def), parameter :: element_order_h = 0
@@ -60,9 +65,15 @@ contains
 
     class(inventory_by_local_mesh_test_type), intent(inout) :: this
 
+    type(lfric_comm_type) :: lfric_comm
     type(local_mesh_type), pointer :: unit_test_local_mesh_ptr
     type(mesh_type) :: unit_test_mesh_A, unit_test_mesh_B
     integer(i_def)  :: mesh_id_A, mesh_id_B
+
+    call lfric_comm%set_comm_mpi_val(this%getMpiCommunicator())
+
+    !Store the MPI communicator for later use
+    call global_mpi%initialise(lfric_comm)
 
     ! Create top level mesh collection
     mesh_collection = mesh_collection_type()
@@ -105,6 +116,9 @@ contains
     call function_space_collection%clear()
     call mesh_collection%clear()
 
+    ! Clear the stored MPI communicator
+    call global_mpi%finalise()
+
   end subroutine tearDown
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -125,12 +139,12 @@ contains
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-  @test
-  subroutine test_all( this )
+  @test( npes=[1] )
+  subroutine test_all( context )
 
     implicit none
 
-    class(inventory_by_local_mesh_test_type), intent(inout) :: this
+    class(inventory_by_local_mesh_test_type), intent(inout) :: context
 
     type(local_mesh_type), pointer        :: local_mesh_A => null()
     type(local_mesh_type), pointer        :: local_mesh_B => null()
@@ -164,16 +178,16 @@ contains
 
     !---------------------------- Create fields -------------------------------!
     ! Create a field object and put 99.0 in the first dof
-    call test_field_A%initialise( this%w3_fs_A )
+    call test_field_A%initialise( context%w3_fs_A )
     test_field_A_p = test_field_A%get_proxy()
     test_field_A_p%data(1) = 99.0_r_def
 
-    call test_field_B%initialise( this%w3_fs_B )
+    call test_field_B%initialise( context%w3_fs_B )
     test_field_B_p = test_field_B%get_proxy()
     test_field_B_p%data(1) = 54.0_r_def
 
-    local_mesh_A => this%mesh_A%get_local_mesh()
-    local_mesh_B => this%mesh_B%get_local_mesh()
+    local_mesh_A => context%mesh_A%get_local_mesh()
+    local_mesh_B => context%mesh_B%get_local_mesh()
 
     !-------------------- Create inventory 'A' & test extracts ----------------!
     ! Create a inventory_by_local_mesh_A and put fields in it
