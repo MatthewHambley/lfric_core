@@ -60,7 +60,7 @@ contains
 
     call lfric_comm%set_comm_mpi_val(this%getMpiCommunicator())
 
-    !Store the MPI communicator for later use
+    ! Store the MPI communicator for later use
     call global_mpi%initialise(lfric_comm)
 
     mesh_collection = mesh_collection_type()
