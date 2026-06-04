@@ -8,39 +8,32 @@
 !>
 module create_mesh_mod_test
 
-  use pfunit
-
   use constants_mod,              only : i_def, r_def, l_def, str_def, &
                                          str_max_filename
-  use create_mesh_mod,            only : create_extrusion, &
-                                         create_mesh
+  use mesh_collection_mod,        only : mesh_collection_type,         &
+                                         mesh_collection
+  use global_mesh_collection_mod, only : global_mesh_collection_type,  &
+                                         global_mesh_collection
+  use local_mesh_collection_mod,  only : local_mesh_collection_type,   &
+                                         local_mesh_collection
+  use mesh_mod,                   only : mesh_type
   use extrusion_mod,              only : extrusion_type, &
                                          PRIME_EXTRUSION
   use extrusion_config_mod,       only : METHOD_UNIFORM
   use feign_config_mod,           only : feign_multigrid_config, &
                                          feign_partitioning_config
-  use global_mesh_collection_mod, only : global_mesh_collection_type,  &
-                                         global_mesh_collection
-  use lfric_mpi_mod,              only : global_mpi, &
-                                         lfric_comm_type
-  use local_mesh_collection_mod,  only : local_mesh_collection_type,   &
-                                         local_mesh_collection
-  use mesh_mod,                   only : mesh_type
-  use mesh_collection_mod,        only : mesh_collection_type,         &
-                                         mesh_collection
+  use create_mesh_mod,            only : create_extrusion, &
+                                         create_mesh
   use panel_decomposition_mod,    only : custom_decomposition_type
+  use pfunit
 
   implicit none
 
   private
   public :: test_single_cell_tiling
-  !
-  ! pFUnit depends on symbol spillage
-  !
-  public :: MpiTestParameter
 
   @TestCase
-  type, extends(MpiTestCase), public :: create_mesh_test_type
+  type, extends(TestCase), public :: create_mesh_test_type
     private
   contains
     procedure setUp
@@ -55,13 +48,6 @@ contains
     implicit none
 
     class(create_mesh_test_type), intent(inout) :: this
-
-    type(lfric_comm_type) :: lfric_comm
-
-    call lfric_comm%set_comm_mpi_val(this%getMpiCommunicator())
-
-    ! Store the MPI communicator for later use
-    call global_mpi%initialise(lfric_comm)
 
     mesh_collection = mesh_collection_type()
     global_mesh_collection = global_mesh_collection_type()
@@ -86,8 +72,6 @@ contains
     call mesh_collection%clear()
     call global_mesh_collection%clear()
     call local_mesh_collection%clear()
-    ! Clear the stored MPI communicator
-    call global_mpi%finalise()
 
   end subroutine tearDown
 
@@ -163,16 +147,15 @@ contains
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! Test 1x1 tiling only, which is equivalent to colouring - other tiling
   ! setups require MPI
-  @Test( npes=[1] )
-  subroutine test_single_cell_tiling( context )
+  @Test
+  subroutine test_single_cell_tiling( this )
 
     use partitioning_config_mod, only : panel_decomposition_auto, &
                                         partitioner_planar
 
     implicit none
 
-    class(create_mesh_test_type), intent(inout) :: context
-    
+    class(create_mesh_test_type), intent(inout) :: this
     class(extrusion_type),          allocatable :: extrusion
     type(mesh_type), pointer                    :: mesh
     integer(i_def)                              :: xyprocs(2)

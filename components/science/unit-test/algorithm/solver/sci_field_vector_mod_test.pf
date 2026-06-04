@@ -9,75 +9,33 @@
 !-------------------------------------------------------------------------------
 module sci_field_vector_mod_test
 
-  use pfunit
-
   use constants_mod,                  only : i_def, r_def
-  use function_space_collection_mod,  only : function_space_collection_type, &
-                                             function_space_collection
-  use fs_continuity_mod,              only : W0, W2, W3
-  use halo_comms_mod,                 only : initialise_halo_comms, &
-                                             finalise_halo_comms
   use halo_routing_collection_mod,    only : halo_routing_collection_type, &
                                              halo_routing_collection
-  use lfric_mpi_mod,                 only : global_mpi, &
-                                            lfric_comm_type
+  use function_space_collection_mod,  only : function_space_collection_type, &
+                                             function_space_collection
+  use halo_comms_mod,                 only : initialise_halo_comms, &
+                                             finalise_halo_comms
+  use lfric_mpi_mod,                  only : global_mpi
   use local_mesh_mod,                 only : local_mesh_type
   use mesh_collection_mod,            only : mesh_collection_type, &
                                              mesh_collection
+  use fs_continuity_mod,              only : W0, W2, W3
+  use funit
 
   implicit none
 
   private
   public :: test_all
-  !
-  ! pFUnit depends on symbol spillage
-  !
-  public :: MpiTestParameter
-
-  @TestCase
-  type, extends(MpiTestCase), public :: sci_field_vector_mod_test_type
-    private
-    ! Normally we wouldn't have a test class since there's no state to track
-    ! but it's the only way for the set-up routine to get at the communicator.
-  contains
-    procedure setUp
-    procedure tearDown
-  end type sci_field_vector_mod_test_type
 
   integer(i_def), parameter :: element_order_h = 0
   integer(i_def), parameter :: element_order_v = 0
 
 contains
 
-  subroutine setUp( this )
-
-    implicit none
-
-    class(sci_field_vector_mod_test_type), intent(inout) :: this
-
-    type(lfric_comm_type) :: lfric_comm
-
-    call lfric_comm%set_comm_mpi_val(this%getMpiCommunicator())
-
-    ! Store the MPI communicator for later use
-    call global_mpi%initialise(lfric_comm)
-
-  end subroutine setUp
-
-  subroutine tearDown( this )
-
-    implicit none
-
-    class(sci_field_vector_mod_test_type), intent(inout) :: this
-
-    ! Clear the stored MPI communicator
-    call global_mpi%finalise()
-
-  end subroutine tearDown
-
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  @Test( npes=[1] )
-  subroutine test_all( context )
+  @Test
+  subroutine test_all( )
 
     use field_mod,             only: field_type, field_proxy_type
     use function_space_mod,    only: function_space_type
@@ -86,11 +44,9 @@ contains
 
     implicit none
 
-    class(sci_field_vector_mod_test_type), intent(inout) :: context
-
     type(field_vector_type) :: fv1, fv2, fv3
-    type(field_type)        :: f1, f2, f3
-    type(field_proxy_type)  :: f1_p, f2_p, f3_p
+    type(field_type)          :: f1, f2, f3
+    type(field_proxy_type)    :: f1_p, f2_p, f3_p
 
     type(local_mesh_type), target  :: unit_test_local_mesh
     type(local_mesh_type), pointer :: unit_test_local_mesh_ptr
