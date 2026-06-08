@@ -28,3 +28,6 @@
 | mo-lucy-gordon   | Lucy Gordon            | Met Office            | 2026-03-18 |
 | shreybh1         | Shrey Bhardwaj         | Met Office            | 2026-03-26 |
 | hiker            | Joerg Henrichs         | Bureau of Meteorology | 2026-02-11 |
+| mattatmet        | Matthew Walker         | Met Office            | 2026-04-21 |
+| timgraham-Met    | Tim Graham             | Met Office            | 2026-05-20 |
+| Adrian-Lock      | Adrian Lock            | Met Office            | 2026-05-21 |
