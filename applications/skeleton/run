@@ -1,0 +1,38 @@
+#!/bin/sh
+
+set -e -u  # Stop on error # Undefined variable is error
+
+if [ ! -e ToyBuildSystem/.git ]; then
+#    git clone ssh://git@github.com/MetOffice/ToyBuildSystem
+    ln -s ~/Projects/ToyInAnger ToyBuildSystem
+fi
+
+if [ ! -d .venv ]; then
+    python3.12 -m venv .venv
+    . .venv/bin/activate
+    pip install --upgrade pip
+    pip install -e ./ToyBuildSystem
+else
+    . .venv/bin/activate
+fi
+
+
+if ! echo "$_LMFILES_" | grep -q xios
+then
+    # Load the lfric modules if not already loaded
+    module use ~lfricadmin/lmod
+    module load lfric
+fi
+
+if echo "$_LMFILES_" | grep -q sci-fab
+then
+    module -q unload sci-fab
+fi
+
+xios_path=$(which xios_server.exe)
+xios_path=$(dirname "$xios_path")
+xios_inc_path=$(readlink -f "$xios_path/../include")
+xios_lib_path=$(readlink -f "$xios_path/../lib")
+XIOS_LIB="-m xios:$xios_inc_path::$xios_lib_path"
+
+fabtoy "$XIOS_LIB" $*

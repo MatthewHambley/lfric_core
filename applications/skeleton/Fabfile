@@ -1,0 +1,62 @@
+from pathlib import Path
+from typing import Iterable
+
+from fabengine.build_script import BuildScript
+from fabengine.configuration_tools import WriteOnceDict
+from fabengine.project import Project
+from fabengine.repository import FileTreeRepository, Repository
+
+
+class Skeleton(BuildScript):
+    def repositories(self) -> Iterable[Repository]:
+        return [
+            FileTreeRepository(
+                Path("../.."),
+                paths={
+                    "psyclone_config": Path("etc/psyclone.cfg")
+                },
+                projects=[
+                    Project(
+                        Path("infrastructure"),
+                        paths={
+                            "generate-config-loader": Path("build/tools/GenerateConfigLoader"),
+                            "generate-config-type": Path("build/tools/GenerateConfigType"),
+                            "generate-extended-namelist-type": Path("build/tools/GenerateExtendedNamelistType"),
+                            "generate-namelist-loader": Path("build/tools/GenerateNamelistLoader"),
+                            "templaterator": Path("build/tools/Templaterator"),
+                        }
+                    ),
+                    Project(Path("components/driver")),
+                    Project(Path("components/science")),
+                    Project(Path("components/inventory")),
+                    Project(Path("components/lfric-xios")),
+                    Project(
+                        Path("applications/skeleton"),
+                        configuration_meta_data=Path(
+                            "rose-meta/lfric-skeleton/HEAD/rose-meta.conf"
+                        ),
+                    ),
+                ],
+            )
+        ]
+
+    def libraries(self) -> list[str]:
+        return [
+            'yaxt', 'yaxt_c', 'netcdf-fortran', 'netcdf', 'xios'
+        ]
+
+    def add_configuration(self, configuration: WriteOnceDict) -> None:
+        configuration['fpp_definitions'] = {
+            "LFRIC": "true",
+            "USSPREC_32B": "true",
+            "LSPREC_32B": "true",
+            # I/O platform
+            "USE_XIOS": "true",
+            # Component precision
+            "RDEF_PRECISION": "64",
+            "R_SOLVER_PRECISION": "32",
+            "R_TRAN_PRECISION": "64",
+            "R_BL_PRECISION": "64",
+            # Transitional
+            "LEGACY_MPI": "true",
+        }
