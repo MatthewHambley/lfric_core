@@ -7,14 +7,19 @@
 # Run this make file to generate pFUnit source in WORKING_DIR from test
 # descriptions in SOURCE_DIR.
 #
+# Since unit test source is preprocessed, will also need the preprocessor
+# variables PRE_PROCESS_INCLUDE_DIRS and PRE_PROCESS_MACROS ang with FPP and
+# FPPFLAGS.
+#
 PF_FILES = $(shell find $(SOURCE_DIR) -name '*.pf' -print | sed "s|$(SOURCE_DIR)||")
 PPF_FILES = $(shell find $(SOURCE_DIR) -name '*.PF' -print | sed "s|$(SOURCE_DIR)||")
 
 .PHONY: prepare-pfunit
-prepare-pfunit: $(patsubst %.pf,$(WORKING_DIR)/%.F90,$(PF_FILES)) \
-                $(patsubst %.PF,$(WORKING_DIR)/%.F90,$(PPF_FILES)) \
-                $(WORKING_DIR)/$(PROJECT)_unit_tests.F90
+prepare-pfunit: $(patsubst %.pf,$(WORKING_DIR)/%.f90,$(PF_FILES)) \
+                $(patsubst %.PF,$(WORKING_DIR)/%.f90,$(PPF_FILES)) \
+                $(WORKING_DIR)/$(PROJECT)_unit_tests.f90
 
+include $(LFRIC_BUILD)/preprocess.mk
 include $(LFRIC_BUILD)/lfric.mk
 
 .PRECIOUS: $(WORKING_DIR)/$(PROJECT)_unit_tests.F90
