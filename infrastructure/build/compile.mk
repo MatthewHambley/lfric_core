@@ -74,10 +74,8 @@ MOD_DIR ?= mod
 # result from "uname" but it should be good enough for the moment.
 #
 ifeq ($(shell uname),Linux)
-  $(warning linux)
   TIME_TOOL = /usr/bin/time -f "Compiled $<: Wallclock=%E, Highwater=%MKiB"
 else
-  $(warning not linux)
   TIME_TOOL = time
 endif
 
