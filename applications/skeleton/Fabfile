@@ -23,6 +23,7 @@ class Skeleton(BuildScript):
                             "generate-config-type": Path("build/tools/GenerateConfigType"),
                             "generate-extended-namelist-type": Path("build/tools/GenerateExtendedNamelistType"),
                             "generate-namelist-loader": Path("build/tools/GenerateNamelistLoader"),
+                            "generate-feigns": Path("build/tools/GenerateFeigns"),
                             "templaterator": Path("build/tools/Templaterator"),
                         }
                     ),
