@@ -41,7 +41,7 @@ class Skeleton(BuildScript):
             )
         ]
 
-    def libraries(self) -> list[str]:
+    def packages(self) -> Iterable[str]:
         return [
             'yaxt', 'yaxt_c', 'netcdf-fortran', 'netcdf', 'xios'
         ]
